@@ -110,7 +110,7 @@ namespace TileEngine
             int shiftedBlockAttributes = blockAttributes >> shiftSize;
             int paletteGroupIndex = shiftedBlockAttributes & 0b11;
 
-            return paletteGroupIndex
+            return paletteGroupIndex;
         }
     }
 }

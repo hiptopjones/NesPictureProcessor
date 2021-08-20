@@ -1,35 +1,55 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using NLog;
+using System;
+using System.Diagnostics;
 
 namespace TileEngine
 {
     class Program
     {
+        private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
 
-        static void Main(string[] args)
+        private const int SuccessExitCode = 0;
+        private const int FailureExitCode = 1;
+
+        static int Main(string[] args)
         {
-            PictureProcessor processor = new PictureProcessor();
+            int exitCode;
+            CommandLineOptions options = new CommandLineOptions();
 
-            TimeSpan frameInterval = TimeSpan.FromSeconds(1 / 60.0);
-            DateTime startTime = DateTime.Now;
-            DateTime nextFrame = startTime + frameInterval;
-            while (true)
+            try
             {
-                // Lock the frame rate
-                if (DateTime.Now < nextFrame)
+                if (!options.ParseArguments(args))
                 {
-                    continue;
+                    throw new Exception($"Unable to parse command line arguments: '{Environment.CommandLine}'");
                 }
 
-                // This will drift due to precision loss over time
-                nextFrame += frameInterval;
+                Game game = new Game();
+                game.Run();
 
-                byte[] frameBuffer = processor.GenerateFrame();
-                //DrawFrame(frameBuffer);
+                exitCode = SuccessExitCode;
             }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, $"Processing failed: {ex.Message}");
+                exitCode = FailureExitCode;
+            }
+            finally
+            {
+                if (options.PromptUser || Debugger.IsAttached)
+                {
+                    PromptToContinue();
+                }
+            }
+
+            return exitCode;
+        }
+
+        private static void PromptToContinue()
+        {
+            LogManager.Flush();
+
+            Console.WriteLine("Press Enter to continue...");
+            Console.ReadLine();
         }
     }
 }
