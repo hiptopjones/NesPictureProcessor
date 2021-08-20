@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30907.101
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TileEngine", "TileEngine\TileEngine.csproj", "{3DD1C5B9-CCB8-4F12-AF48-655C8E1A8470}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TileEngineTests", "TileEngineTests\TileEngineTests.csproj", "{B953684D-6C39-4855-AED1-2D69C7C5CCD5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3DD1C5B9-CCB8-4F12-AF48-655C8E1A8470}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3DD1C5B9-CCB8-4F12-AF48-655C8E1A8470}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3DD1C5B9-CCB8-4F12-AF48-655C8E1A8470}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3DD1C5B9-CCB8-4F12-AF48-655C8E1A8470}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B953684D-6C39-4855-AED1-2D69C7C5CCD5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B953684D-6C39-4855-AED1-2D69C7C5CCD5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B953684D-6C39-4855-AED1-2D69C7C5CCD5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B953684D-6C39-4855-AED1-2D69C7C5CCD5}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {CF2F1AFF-1787-4F6F-93EF-34B1EE9C3C38}
+	EndGlobalSection
+EndGlobal
