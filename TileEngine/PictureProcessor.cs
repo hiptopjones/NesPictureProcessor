@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NLog;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -16,6 +17,11 @@ namespace TileEngine
         // System palette - All possible colors, ever (64 colors)
         // Frame palette - Colors available to this frame (8 groups * 4 colors, 4 groups for background and 4 groups for sprites)
 
+        public const int Width = 256; // Game.LogicalWidth
+        public const int Height = 240; // Game.LogicalHeight
+
+        private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
+
         // System data
         private SystemPalette SystemPalette { get; set; }
 
@@ -26,17 +32,14 @@ namespace TileEngine
         // Game data
         private FramePalette BackgroundPalette { get; set; }
         private FramePalette SpritePalette { get; set; }
-        private NameTable[] Backgrounds { get; set; }
+        private NameTable Background { get; set; } // TODO: Support multiple nametables
         private ObjectAttributes Sprites { get; set; }
         private int ScrollPositionX { get; set; }
         private int ScrollPositionY { get; set; }
 
-        public PictureProcessor()
-        {
-            InitializeSystem();
-        }
+        private Color[] FrameBuffer { get; set; } = new Color[Width * Height];
 
-        private void InitializeSystem()
+        public PictureProcessor()
         {
             InitializeSystemPalette();
             InitializePatternTables();
@@ -47,91 +50,33 @@ namespace TileEngine
 
         private void InitializeSystemPalette()
         {
-            // Colors from here: https://wiki.nesdev.com/w/index.php/PPU_palettes
-            Color[] systemPaletteColors = new Color[SystemPalette.ColorCount]
-            {
-                // Row 1
-                /* 0x00 */ new Color(84, 84, 84),
-                /* 0x01 */ new Color(0, 30, 116),
-                /* 0x02 */ new Color(8, 16, 144),
-                /* 0x03 */ new Color(48, 0, 136),
-                /* 0x04 */ new Color(68, 0, 100),
-                /* 0x05 */ new Color(92, 0, 48),
-                /* 0x06 */ new Color(84, 4, 0),
-                /* 0x07 */ new Color(60, 24, 0),
-                /* 0x08 */ new Color(32, 42, 0),
-                /* 0x09 */ new Color(8, 58, 0),
-                /* 0x0a */ new Color(0, 64, 0),
-                /* 0x0b */ new Color(0, 60, 0),
-                /* 0x0c */ new Color(0, 50, 60),
-                /* 0x0d */ new Color(0, 0, 0),
-                /* 0x0e */ new Color(0, 0, 0),
-                /* 0x0f */ new Color(0, 0, 0),
-
-                // Row 2
-                /* 0x10 */ new Color(152, 150, 152),
-                /* 0x11 */ new Color(8, 76, 196),
-                /* 0x12 */ new Color(48, 50, 236),
-                /* 0x13 */ new Color(92, 30, 228),
-                /* 0x14 */ new Color(136, 20, 176),
-                /* 0x15 */ new Color(160, 20, 100),
-                /* 0x16 */ new Color(152, 34, 32),
-                /* 0x17 */ new Color(120, 60, 0),
-                /* 0x18 */ new Color(84, 90, 0),
-                /* 0x19 */ new Color(40, 114, 0),
-                /* 0x1a */ new Color(8, 124, 0),
-                /* 0x1b */ new Color(0, 118, 40),
-                /* 0x1c */ new Color(0, 102, 120),
-                /* 0x1d */ new Color(0, 0, 0),
-                /* 0x1e */ new Color(0, 0, 0),
-                /* 0x1f */ new Color(0, 0, 0),
-
-                // Row 3
-                /* 0x20 */ new Color(236, 238, 236),
-                /* 0x21 */ new Color(76, 154, 236),
-                /* 0x22 */ new Color(120, 124, 236),
-                /* 0x23 */ new Color(176, 98, 236),
-                /* 0x24 */ new Color(228, 84, 236),
-                /* 0x25 */ new Color(236, 88, 180),
-                /* 0x26 */ new Color(236, 106, 100),
-                /* 0x27 */ new Color(212, 136, 32),
-                /* 0x28 */ new Color(160, 170, 0),
-                /* 0x29 */ new Color(116, 196, 0),
-                /* 0x2a */ new Color(76, 208, 32),
-                /* 0x2b */ new Color(56, 204, 108),
-                /* 0x2c */ new Color(56, 180, 204),
-                /* 0x2d */ new Color(60, 60, 60),
-                /* 0x2e */ new Color(0, 0, 0),
-                /* 0x2f */ new Color(0, 0, 0),
-
-                // Row 4
-                /* 0x30 */ new Color(236, 238, 236),
-                /* 0x31 */ new Color(168, 204, 236),
-                /* 0x32 */ new Color(188, 188, 236),
-                /* 0x33 */ new Color(212, 178, 236),
-                /* 0x34 */ new Color(236, 174, 236),
-                /* 0x35 */ new Color(236, 174, 212),
-                /* 0x36 */ new Color(236, 180, 176),
-                /* 0x37 */ new Color(228, 196, 144),
-                /* 0x38 */ new Color(204, 210, 120),
-                /* 0x39 */ new Color(180, 222, 120),
-                /* 0x3a */ new Color(168, 226, 144),
-                /* 0x3b */ new Color(152, 226, 180),
-                /* 0x3c */ new Color(160, 214, 228),
-                /* 0x3d */ new Color(160, 162, 160),
-                /* 0x3e */ new Color(0, 0, 0),
-                /* 0x3f */ new Color(0, 0, 0)
-            };
-
-            SystemPalette = new SystemPalette(systemPaletteColors);
+            SystemPalette = new SystemPalette(Data.SystemPaletteColors);
         }
 
         private void InitializePatternTables()
         {
-            Tile[] backgroundTiles = new Tile[PatternTable.TileCount];
-            BackgroundTiles = new PatternTable(backgroundTiles);
-
             Tile[] spriteTiles = new Tile[PatternTable.TileCount];
+            Tile[] backgroundTiles = new Tile[PatternTable.TileCount];
+
+            for (int i = 0; i < 256; i++)
+            {
+                byte[] bytes = Data.ChrRom[i];
+                byte[] lowPackedBytes = bytes.Take(Tile.PackedPixelByteCount).ToArray();
+                byte[] highPackedBytes = bytes.Skip(Tile.PackedPixelByteCount).Take(Tile.PackedPixelByteCount).ToArray();
+
+                spriteTiles[i] = new Tile(lowPackedBytes, highPackedBytes);
+            }
+
+            for (int i = 0; i < 256; i++)
+            {
+                byte[] bytes = Data.ChrRom[i + PatternTable.TileCount];
+                byte[] lowPackedBytes = bytes.Take(Tile.PackedPixelByteCount).ToArray();
+                byte[] highPackedBytes = bytes.Skip(Tile.PackedPixelByteCount).Take(Tile.PackedPixelByteCount).ToArray();
+
+                backgroundTiles[i] = new Tile(lowPackedBytes, highPackedBytes);
+            }
+
+            BackgroundTiles = new PatternTable(backgroundTiles);
             SpriteTiles = new PatternTable(spriteTiles);
         }
 
@@ -161,17 +106,47 @@ namespace TileEngine
 
         private void InitializeBackground()
         {
-            throw new NotImplementedException();
+            byte[] patternTableIndexes = Data.NameTable0Ram.Take(NameTable.TileCount).ToArray();
+            byte[] packedAttributes = Data.NameTable0Ram.Skip(NameTable.TileCount).Take(NameTable.BlockCount).ToArray();
+
+            Background = new NameTable(patternTableIndexes, packedAttributes);
         }
 
         private void InitializeSprites()
         {
-            throw new NotImplementedException();
+            //throw new NotImplementedException();
         }
 
-        public byte[] GenerateFrame()
+        public Color[] GenerateFrame()
         {
-            throw new NotImplementedException();
+            for (int pixelY = 0; pixelY < Height; pixelY++)
+            {
+                for (int pixelX = 0; pixelX < Width; pixelX++)
+                {
+                    // Translate pixel to tile location
+                    int tileX = pixelX / Tile.PixelCountX;
+                    int tileY = pixelY / Tile.PixelCountY;
+
+                    // Get the tile
+                    int patternTableIndex = Background.GetPatternTableIndex(tileX, tileY);
+                    Tile tile = BackgroundTiles.GetTile(patternTableIndex);
+
+                    // Get the specific pixel in the tile
+                    int pixelValue = tile.GetPixelValue(pixelX % Tile.PixelCountX, pixelY % Tile.PixelCountY);
+
+                    // Get the palette group to use
+                    int paletteGroupIndex = Background.GetPaletteGroupIndex(tileX, tileY);
+                    PaletteGroup paletteGroup = BackgroundPalette.GetPaletteGroup(paletteGroupIndex);
+
+                    // Get the specific color to draw
+                    int systemPaletteIndex = paletteGroup.GetPaletteIndex(pixelValue);
+                    Color color = SystemPalette.GetColor(systemPaletteIndex);
+
+                    FrameBuffer[(pixelY * Width) + pixelX] = color;
+                }
+            }
+
+            return FrameBuffer;
         }
     }
 }

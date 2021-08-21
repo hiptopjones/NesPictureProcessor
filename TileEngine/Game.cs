@@ -12,12 +12,18 @@ namespace TileEngine
 	{
 		private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
 
+		// Actual window dimensions (scales up or down from logical dimensions)
+		private const int WindowWidth = 768;
+		private const int WindowHeight = 720;
+
+		// NES rendering dimensions
+		private const int LogicalWidth = 256;
+		private const int LogicalHeight = 240;
+
+		// SDL handles
 		private IntPtr SdlWindow { get; set; }
 		private IntPtr SdlRenderer { get; set; }
 
-		private const int WindowWidth = 256;
-		private const int WindowHeight = 240;
-		private const int FramesPerSecond = 60;
 
 		public void Run()
         {
@@ -25,9 +31,9 @@ namespace TileEngine
             {
 				SdlSetup();
 
-				//PictureProcessor processor = new PictureProcessor();
+                PictureProcessor processor = new PictureProcessor();
 
-				bool isRunning = true;
+                bool isRunning = true;
 				uint totalFrames = 0;
 				uint totalFrameTicks = 0;
 
@@ -52,12 +58,16 @@ namespace TileEngine
 						}
 					}
 
+					Color[] frameBuffer = processor.GenerateFrame();
+
 					// Render loop
-					for (int x = 0; x < WindowWidth; x++)
-                    {
-                        for (int y = 0; y < WindowHeight; y++)
-                        {
-							SDL.SDL_SetRenderDrawColor(SdlRenderer, (byte)x, (byte)y, (byte)totalFrames, 0xFF);
+					for (int y = 0; y < LogicalHeight; y++)
+					{
+						for (int x = 0; x < LogicalWidth; x++)
+	                    {
+							Color color = frameBuffer[(y * LogicalWidth) + x];
+
+							SDL.SDL_SetRenderDrawColor(SdlRenderer, color.R, color.G, color.B, 0xFF);
 							SDL.SDL_RenderDrawPoint(SdlRenderer, x, y);
 						}
 					}
@@ -91,19 +101,24 @@ namespace TileEngine
 
 		private void SdlSetup()
 		{
+			if (SDL.SDL_Init(SDL.SDL_INIT_VIDEO) < 0)
+            {
+				throw new Exception($"Unable to init video: {SDL.SDL_GetError()}");
+			}
+
 			SdlWindow = SDL.SDL_CreateWindow("TileEngine", SDL.SDL_WINDOWPOS_UNDEFINED, SDL.SDL_WINDOWPOS_UNDEFINED, WindowWidth, WindowHeight, SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN);
 			if (SdlWindow == IntPtr.Zero)
 			{
-				throw new Exception($"Couldn't create window: {SDL.SDL_GetError()}");
+				throw new Exception($"Unable to create window: {SDL.SDL_GetError()}");
 			}
-			else
+
+			SdlRenderer = SDL.SDL_CreateRenderer(SdlWindow, -1, SDL.SDL_RendererFlags.SDL_RENDERER_ACCELERATED);
+			if (SdlRenderer == IntPtr.Zero)
 			{
-				SdlRenderer = SDL.SDL_CreateRenderer(SdlWindow, -1, SDL.SDL_RendererFlags.SDL_RENDERER_ACCELERATED);
-				if (SdlRenderer == IntPtr.Zero)
-				{
-					throw new Exception($"Couldn't create renderer: {SDL.SDL_GetError()}");
-				}
+				throw new Exception($"Unable to create renderer: {SDL.SDL_GetError()}");
 			}
+
+			SDL.SDL_RenderSetLogicalSize(SdlRenderer, LogicalWidth, LogicalHeight);
 		}
 
 		private void SdlTeardown()
