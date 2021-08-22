@@ -33,7 +33,7 @@ namespace TileEngine
         private FramePalette BackgroundPalette { get; set; }
         private FramePalette SpritePalette { get; set; }
         private NameTable Background { get; set; } // TODO: Support multiple nametables
-        private ObjectAttributes Sprites { get; set; }
+        private ObjectTable Sprites { get; set; }
         private int ScrollPositionX { get; set; }
         private int ScrollPositionY { get; set; }
 
@@ -114,39 +114,113 @@ namespace TileEngine
 
         private void InitializeSprites()
         {
-            //throw new NotImplementedException();
+            Sprites = new ObjectTable(Data.PrimaryOamRam);
         }
 
         public Color[] GenerateFrame()
         {
             for (int pixelY = 0; pixelY < Height; pixelY++)
             {
+                int[] validAttributeIds = Sprites.GetObjectsOnScanline(pixelY);
+
                 for (int pixelX = 0; pixelX < Width; pixelX++)
                 {
-                    // Translate pixel to tile location
-                    int tileX = pixelX / Tile.PixelCountX;
-                    int tileY = pixelY / Tile.PixelCountY;
+                    // NOTE: This will result in overdraw
+                    Color backgroundColor = GenerateBackgroundColor(pixelX, pixelY);
+                    Color spriteColor = GenerateSpriteColor(pixelX, pixelY, validAttributeIds);
 
-                    // Get the tile
-                    int patternTableIndex = Background.GetPatternTableIndex(tileX, tileY);
-                    Tile tile = BackgroundTiles.GetTile(patternTableIndex);
+                    Color pixelColor = spriteColor != null ? spriteColor : backgroundColor;
+                    FrameBuffer[(pixelY * Width) + pixelX] = pixelColor;
+                }
+            }
+
+            return FrameBuffer;
+        }
+
+        private Color GenerateBackgroundColor(int pixelX, int pixelY)
+        {
+            // Translate pixel to tile location
+            int tileX = pixelX / Tile.PixelCountX;
+            int tileY = pixelY / Tile.PixelCountY;
+
+            // Get the tile
+            int patternTableIndex = Background.GetPatternTableIndex(tileX, tileY);
+            Tile tile = BackgroundTiles.GetTile(patternTableIndex);
+
+            // Get the specific pixel in the tile
+            int localX = pixelX % Tile.PixelCountX;
+            int localY = pixelY % Tile.PixelCountY;
+            int pixelValue = tile.GetPixelValue(localX, localY);
+
+            // Get the palette group to use
+            // Pixel value = 0 in background tiles means use the universal background color (group 0, entry 0)
+            int paletteGroupIndex = pixelValue == 0 ? 0 : Background.GetPaletteGroupIndex(tileX, tileY);
+            PaletteGroup paletteGroup = BackgroundPalette.GetPaletteGroup(paletteGroupIndex);
+
+            // Get the specific color to draw
+            int systemPaletteIndex = paletteGroup.GetPaletteIndex(pixelValue);
+            Color color = SystemPalette.GetColor(systemPaletteIndex);
+
+            return color;
+        }
+
+        private Color GenerateSpriteColor(int pixelX, int pixelY, int[] validAttributeIds)
+        {
+            // NOTE: Returns the first pixel it finds
+            // NOTE: Ignores the priority (draw over/under background) flag
+
+            for (int i = 0; i < validAttributeIds.Length; i++)
+            {
+                int attributeId = validAttributeIds[i];
+                if (attributeId < 0)
+                {
+                    // Once any attributeId is -1 (empty), all subsequent are empty
+                    break;
+                }
+
+                int spriteX = Sprites.GetX(attributeId);
+                if (spriteX <= pixelX && spriteX > pixelX - Tile.PixelCountX)
+                {
+                    int spriteY = Sprites.GetY(attributeId);
+
+                    int patternTableIndex = Sprites.GetPatternTableIndex(attributeId);
+                    Tile tile = SpriteTiles.GetTile(patternTableIndex);
 
                     // Get the specific pixel in the tile
-                    int pixelValue = tile.GetPixelValue(pixelX % Tile.PixelCountX, pixelY % Tile.PixelCountY);
+                    int localX = pixelX - spriteX;
+                    int localY = pixelY - spriteY;
+
+                    if (Sprites.IsFlippedHorizontal(attributeId))
+                    {
+                        localX = Tile.PixelCountX - localX - 1;
+                    }
+
+                    if (Sprites.IsFlippedVertical(attributeId))
+                    {
+                        localY = Tile.PixelCountY - localY - 1;
+                    }
+
+                    int pixelValue = tile.GetPixelValue(localX, localY);
+
+                    if (pixelValue == 0)
+                    {
+                        // Pixel value = 0 in sprites means a transparent pixel
+                        continue;
+                    }
 
                     // Get the palette group to use
-                    int paletteGroupIndex = Background.GetPaletteGroupIndex(tileX, tileY);
-                    PaletteGroup paletteGroup = BackgroundPalette.GetPaletteGroup(paletteGroupIndex);
+                    int paletteGroupIndex = Sprites.GetPaletteGroupIndex(attributeId);
+                    PaletteGroup paletteGroup = SpritePalette.GetPaletteGroup(paletteGroupIndex);
 
                     // Get the specific color to draw
                     int systemPaletteIndex = paletteGroup.GetPaletteIndex(pixelValue);
                     Color color = SystemPalette.GetColor(systemPaletteIndex);
 
-                    FrameBuffer[(pixelY * Width) + pixelX] = color;
+                    return color;
                 }
             }
 
-            return FrameBuffer;
+            return null;
         }
     }
 }

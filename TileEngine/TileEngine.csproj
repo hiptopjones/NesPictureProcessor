@@ -85,7 +85,7 @@
     <Compile Include="PictureProcessor.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ObjectAttributes.cs" />
+    <Compile Include="ObjectTable.cs" />
     <Compile Include="SystemPalette.cs" />
     <Compile Include="Tile.cs" />
   </ItemGroup>
