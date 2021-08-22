@@ -8,6 +8,8 @@ namespace TileEngine
 {
     class ObjectTable
     {
+        // Representation of the OAM memory in the PPU
+
         public const int AttributeCount = 64;
         public const int AttributeSize = 4;
 
@@ -31,6 +33,7 @@ namespace TileEngine
         public int[] GetObjectsOnScanline(int y)
         {
             // Max 8 sprites per scanline
+            // TODO: Use a global structure to avoid this constant memory allocation
             int[] validAttributeIds = new int[8] { -1, -1, -1, -1, -1, -1, -1, -1 };
             int currentIndex = 0;
 

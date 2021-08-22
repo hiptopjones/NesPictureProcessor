@@ -17,10 +17,10 @@ namespace TileEngine
         // System palette - All possible colors, ever (64 colors)
         // Frame palette - Colors available to this frame (8 groups * 4 colors, 4 groups for background and 4 groups for sprites)
 
-        public const int Width = 256; // Game.LogicalWidth
-        public const int Height = 240; // Game.LogicalHeight
-
         private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
+
+        public const int ScreenWidth = 256;
+        public const int ScreenHeight = 240;
 
         // System data
         private SystemPalette SystemPalette { get; set; }
@@ -32,19 +32,20 @@ namespace TileEngine
         // Game data
         private FramePalette BackgroundPalette { get; set; }
         private FramePalette SpritePalette { get; set; }
-        private NameTable Background { get; set; } // TODO: Support multiple nametables
+        private NameTable[] Backgrounds { get; set; }
         private ObjectTable Sprites { get; set; }
         private int ScrollPositionX { get; set; }
         private int ScrollPositionY { get; set; }
+        private bool IsScrollVertical { get; set; }
 
-        private Color[] FrameBuffer { get; set; } = new Color[Width * Height];
+        private Color[] FrameBuffer { get; set; } = new Color[ScreenWidth * ScreenHeight];
 
         public PictureProcessor()
         {
             InitializeSystemPalette();
             InitializePatternTables();
             InitializePaletteGroups();
-            InitializeBackground();
+            InitializeBackgrounds();
             InitializeSprites();
         }
 
@@ -104,12 +105,23 @@ namespace TileEngine
             SpritePalette = new FramePalette(spritePaletteGroups);
         }
 
-        private void InitializeBackground()
+        private void InitializeBackgrounds()
         {
-            byte[] patternTableIndexes = Data.NameTable0Ram.Take(NameTable.TileCount).ToArray();
-            byte[] packedAttributes = Data.NameTable0Ram.Skip(NameTable.TileCount).Take(NameTable.BlockCount).ToArray();
+            Backgrounds = new NameTable[4];
 
-            Background = new NameTable(patternTableIndexes, packedAttributes);
+            int backgroundIndex = 0;
+            foreach (byte[] nameTable in new[] { Data.NameTable0Ram, Data.NameTable1Ram, Data.NameTable1Ram, Data.NameTable0Ram })
+            {
+                if (nameTable != null)
+                {
+                    byte[] patternTableIndexes = nameTable.Take(NameTable.TileCount).ToArray();
+                    byte[] packedAttributes = nameTable.Skip(NameTable.TileCount).Take(NameTable.BlockCount).ToArray();
+
+                    Backgrounds[backgroundIndex] = new NameTable(patternTableIndexes, packedAttributes);
+                }
+
+                backgroundIndex++;
+            }
         }
 
         private void InitializeSprites()
@@ -119,18 +131,18 @@ namespace TileEngine
 
         public Color[] GenerateFrame()
         {
-            for (int pixelY = 0; pixelY < Height; pixelY++)
+            for (int pixelY = 0; pixelY < ScreenHeight; pixelY++)
             {
                 int[] validAttributeIds = Sprites.GetObjectsOnScanline(pixelY);
 
-                for (int pixelX = 0; pixelX < Width; pixelX++)
+                for (int pixelX = 0; pixelX < ScreenWidth; pixelX++)
                 {
                     // NOTE: This will result in overdraw
                     Color backgroundColor = GenerateBackgroundColor(pixelX, pixelY);
                     Color spriteColor = GenerateSpriteColor(pixelX, pixelY, validAttributeIds);
 
                     Color pixelColor = spriteColor != null ? spriteColor : backgroundColor;
-                    FrameBuffer[(pixelY * Width) + pixelX] = pixelColor;
+                    FrameBuffer[(pixelY * ScreenWidth) + pixelX] = pixelColor;
                 }
             }
 
@@ -139,22 +151,34 @@ namespace TileEngine
 
         private Color GenerateBackgroundColor(int pixelX, int pixelY)
         {
+            // NOTE: Assumes appropriate backgrounds exist if scrolling in that direction
+
+            int absolutePixelX = ScrollPositionX + pixelX;
+            int backgroundLocalPixelX = absolutePixelX % ScreenWidth;
+            int backgroundHorizontalIndex = absolutePixelX / ScreenWidth % 2;
+
+            int absolutePixelY = ScrollPositionY + pixelY;
+            int backgroundLocalPixelY = absolutePixelY % ScreenHeight;
+            int backgroundVerticalIndex = absolutePixelY / ScreenHeight % 2;
+
+            NameTable background = Backgrounds[backgroundVerticalIndex << 1 | backgroundHorizontalIndex];
+
             // Translate pixel to tile location
-            int tileX = pixelX / Tile.PixelCountX;
-            int tileY = pixelY / Tile.PixelCountY;
+            int tileX = backgroundLocalPixelX / Tile.PixelCountX;
+            int tileY = backgroundLocalPixelY / Tile.PixelCountY;
 
             // Get the tile
-            int patternTableIndex = Background.GetPatternTableIndex(tileX, tileY);
+            int patternTableIndex = background.GetPatternTableIndex(tileX, tileY);
             Tile tile = BackgroundTiles.GetTile(patternTableIndex);
 
             // Get the specific pixel in the tile
-            int localX = pixelX % Tile.PixelCountX;
-            int localY = pixelY % Tile.PixelCountY;
+            int localX = backgroundLocalPixelX % Tile.PixelCountX;
+            int localY = backgroundLocalPixelY % Tile.PixelCountY;
             int pixelValue = tile.GetPixelValue(localX, localY);
 
             // Get the palette group to use
             // Pixel value = 0 in background tiles means use the universal background color (group 0, entry 0)
-            int paletteGroupIndex = pixelValue == 0 ? 0 : Background.GetPaletteGroupIndex(tileX, tileY);
+            int paletteGroupIndex = pixelValue == 0 ? 0 : background.GetPaletteGroupIndex(tileX, tileY);
             PaletteGroup paletteGroup = BackgroundPalette.GetPaletteGroup(paletteGroupIndex);
 
             // Get the specific color to draw
@@ -162,6 +186,16 @@ namespace TileEngine
             Color color = SystemPalette.GetColor(systemPaletteIndex);
 
             return color;
+        }
+
+        public void SetScrollPositionX(int x)
+        {
+            ScrollPositionX = x;
+        }
+
+        public void SetScrollPositionY(int y)
+        {
+            ScrollPositionY = y;
         }
 
         private Color GenerateSpriteColor(int pixelX, int pixelY, int[] validAttributeIds)

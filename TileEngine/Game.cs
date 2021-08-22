@@ -17,8 +17,8 @@ namespace TileEngine
 		private const int WindowHeight = 720;
 
 		// NES rendering dimensions
-		private const int LogicalWidth = 256;
-		private const int LogicalHeight = 240;
+		private const int LogicalWidth = PictureProcessor.ScreenWidth;
+		private const int LogicalHeight = PictureProcessor.ScreenHeight;
 
 		// SDL handles
 		private IntPtr SdlWindow { get; set; }
@@ -33,7 +33,10 @@ namespace TileEngine
 
                 PictureProcessor processor = new PictureProcessor();
 
-                bool isRunning = true;
+				int scrollPositionX = 0;
+				int scrollPositionY = 0;
+
+				bool isRunning = true;
 				uint totalFrames = 0;
 				uint totalFrameTicks = 0;
 
@@ -57,6 +60,9 @@ namespace TileEngine
 							isRunning = false;
 						}
 					}
+
+					processor.SetScrollPositionX(scrollPositionX++);
+					processor.SetScrollPositionY(scrollPositionY++);
 
 					Color[] frameBuffer = processor.GenerateFrame();
 
